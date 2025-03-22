@@ -9,7 +9,7 @@ API_KEY = "AIzaSyAPlD-AdySRdcbtYZYmDV4v_spoAfYVm4A"
 genai.configure(api_key=API_KEY)
 
 # Configure YouTube Data API key
-YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"  # Replace with your YouTube API key
+YOUTUBE_API_KEY = "AIzaSyDjjpWFszcgYsc4qc_4cFh5n62kRBzUVqo"  # Replace with your YouTube API key
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 # Function to read the PDF file
