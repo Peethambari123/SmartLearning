@@ -2,10 +2,15 @@ import os
 import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
+from googleapiclient.discovery import build
 
 # Configure Google Gemini API key
 API_KEY = "AIzaSyAPlD-AdySRdcbtYZYmDV4v_spoAfYVm4A"
 genai.configure(api_key=API_KEY)
+
+# Configure YouTube Data API key
+YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"  # Replace with your YouTube API key
+youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 # Function to read the PDF file
 def read_pdf(file_path):
@@ -28,6 +33,26 @@ def query_with_cag(context: str, query: str) -> str:
     response = model.generate_content(prompt)
     return response.text.strip()
 
+# Function to search YouTube and generate links
+def search_youtube(query: str, max_results: int = 5):
+    """
+    Search YouTube for videos related to the query and return their links.
+    """
+    request = youtube.search().list(
+        q=query,
+        part="snippet",
+        type="video",
+        maxResults=max_results
+    )
+    response = request.execute()
+    videos = []
+    for item in response["items"]:
+        video_id = item["id"]["videoId"]
+        video_title = item["snippet"]["title"]
+        video_link = f"https://www.youtube.com/watch?v={video_id}"
+        videos.append({"title": video_title, "link": video_link})
+    return videos
+
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
     st.session_state.chat = genai.GenerativeModel('gemini-1.5-flash').start_chat(history=[])
@@ -41,11 +66,11 @@ if "uploaded_file" not in st.session_state:
 
 # Streamlit app interface
 st.title("🤖 Chatbot & PDF Query App")
-st.write("Welcome! You can chat with the AI or upload a PDF to query its content.")
+st.write("Welcome! You can chat with the AI, upload a PDF to query its content, or search for YouTube videos.")
 
 # Sidebar for navigation
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF"])
+app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube"])
 
 # Chat with AI mode
 if app_mode == "Chat with AI":
@@ -116,3 +141,23 @@ elif app_mode == "Query a PDF":
                 # Step 6: Get the answer from Gemini LLM with the context of the PDF
                 response = query_with_cag(st.session_state.pdf_text, query)
                 st.write("Answer:", response)
+
+# Search YouTube mode
+elif app_mode == "Search YouTube":
+    st.header("Search YouTube")
+    st.write("Search for videos on YouTube.")
+
+    # Step 1: Ask the user to enter a search query
+    search_query = st.text_input("Enter a search query for YouTube:")
+
+    if search_query:
+        # Step 2: Search YouTube and display results
+        st.write(f"Searching YouTube for: {search_query}")
+        videos = search_youtube(search_query)
+
+        if videos:
+            st.write("Here are some relevant videos:")
+            for video in videos:
+                st.write(f"- [{video['title']}]({video['link']})")
+        else:
+            st.write("No videos found for your query.")
