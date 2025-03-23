@@ -275,14 +275,7 @@ elif app_mode == "Quiz Challenge":
             quiz_questions = generate_quiz_from_pdf(pdf_text)
 
         if quiz_questions:
-            # Step 4: Parse the quiz questions
-            # Assuming format: 
-            # 1. Question text
-            #    a) Option 1
-            #    b) Option 2
-            #    c) Option 3
-            #    d) Option 4
-            #    Correct Answer: b) Option 2
+            # Step 4: Parse the quiz questions into a structured format
             lines = quiz_questions.split("\n")
             questions = []
             current_question = {}
@@ -290,7 +283,9 @@ elif app_mode == "Quiz Challenge":
 
             for line in lines:
                 line = line.strip()
-                if line and line[0].isdigit() and "." in line[:3]:
+                if not line:
+                    continue
+                if line[0].isdigit() and "." in line[:3]:  # e.g., "1. What is..."
                     if current_question:
                         current_question["options"] = options
                         questions.append(current_question)
@@ -301,38 +296,49 @@ elif app_mode == "Quiz Challenge":
                 elif line.startswith("Correct Answer:"):
                     current_question["correct"] = line.split(":", 1)[1].strip()
 
-            if current_question and options:
+            if current_question and options:  # Append the last question
                 current_question["options"] = options
                 questions.append(current_question)
 
-            # Step 5: Display quiz and collect user answers
-            st.write("### Quiz Questions")
-            user_answers = {}
-            for i, q in enumerate(questions, 1):
-                st.write(f"**Question {i}: {q['text']}**")
-                user_answer = st.radio(f"Select your answer for Question {i}", q["options"], key=f"q{i}")
-                user_answers[i] = user_answer
-
-            # Step 6: Submit and evaluate
-            if st.button("Submit Quiz"):
-                score = 0
-                feedback = []
+            if not questions:
+                st.error("Could not parse quiz questions. Please try again.")
+            else:
+                # Step 5: Display quiz and collect user answers
+                st.write("### Quiz Questions")
+                user_answers = {}
                 for i, q in enumerate(questions, 1):
-                    user_answer = user_answers.get(i)
-                    correct_answer = q["correct"]
-                    if user_answer == correct_answer:
-                        score += 1
-                    feedback.append(
-                        f"**Question {i}: {q['text']}**\n"
-                        f"Your answer: {user_answer}\n"
-                        f"Correct answer: {correct_answer}\n"
-                        f"{'✅ Correct' if user_answer == correct_answer else '❌ Incorrect'}\n"
-                    )
+                    st.markdown(f"**Question {i}: {q['text']}**")
+                    # Ensure unique key for each question
+                    user_answer = st.radio(f"Select your answer for Question {i}", q["options"], key=f"quiz_q{i}")
+                    user_answers[i] = user_answer
 
-                # Step 7: Display score and feedback
-                st.write(f"### Your Score: {score}/{len(questions)} ({(score/len(questions))*100:.1f}%)")
-                st.write("### Feedback")
-                for fb in feedback:
-                    st.markdown(fb)
+                # Step 6: Submit and evaluate
+                if st.button("Submit Quiz"):
+                    score = 0
+                    feedback = []
+                    for i, q in enumerate(questions, 1):
+                        user_answer = user_answers.get(i)
+                        correct_answer = q["correct"]
+                        is_correct = user_answer == correct_answer
+                        if is_correct:
+                            score += 1
+                        feedback.append({
+                            "question": q["text"],
+                            "user_answer": user_answer,
+                            "correct_answer": correct_answer,
+                            "is_correct": is_correct
+                        })
+
+                    # Step 7: Display score and detailed feedback
+                    st.write(f"### Your Score: {score}/{len(questions)} ({(score/len(questions))*100:.1f}%)")
+                    st.write("### Detailed Feedback")
+                    for fb in feedback:
+                        st.markdown(
+                            f"**Question:** {fb['question']}<br>"
+                            f"**Your Answer:** {fb['user_answer']}<br>"
+                            f"**Correct Answer:** {fb['correct_answer']}<br>"
+                            f"**Result:** {'✅ Correct' if fb['is_correct'] else '❌ Incorrect'}",
+                            unsafe_allow_html=True
+                        )
         else:
-            st.write("Failed to generate quiz questions. Please try again.")
+            st.error("Failed to generate quiz questions. Please try again.")
