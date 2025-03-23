@@ -64,7 +64,7 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# Custom CSS for unique education-themed background
+# Custom CSS for 3D education-themed background
 st.markdown(
     """
     <style>
@@ -74,11 +74,24 @@ st.markdown(
         animation: gradientBG 15s ease infinite;
         perspective: 1000px;
         overflow: hidden;
+        position: relative;
     }
     @keyframes gradientBG {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
+    }
+    .stApp::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M50 10L60 30H40L50 10ZM50 90L40 70H60L50 90ZM10 50L30 60V40L10 50ZM90 50L70 40V60L90 50Z' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.1'/%3E%3C/svg%3E");
+        opacity: 0.1;
+        pointer-events: none;
+        transform: translateZ(-100px);
     }
     .stButton>button {
         background-color: #4A90E2; /* Learning blue */
@@ -119,17 +132,22 @@ st.markdown(
         color: white;
         transform: translateZ(40px);
     }
-    /* Add a subtle pattern overlay */
-    .stApp::before {
+    /* Add 3D floating elements */
+    .stApp::after {
         content: "";
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M50 10L60 30H40L50 10ZM50 90L40 70H60L50 90ZM10 50L30 60V40L10 50ZM90 50L70 40V60L90 50Z' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.1'/%3E%3C/svg%3E");
-        opacity: 0.1;
-        pointer-events: none;
+        top: 20%;
+        left: 10%;
+        width: 100px;
+        height: 100px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        transform: translateZ(-200px) rotateX(45deg) rotateY(45deg);
+        animation: float 6s ease-in-out infinite;
+    }
+    @keyframes float {
+        0%, 100% { transform: translateZ(-200px) rotateX(45deg) rotateY(45deg) translateY(0); }
+        50% { transform: translateZ(-200px) rotateX(45deg) rotateY(45deg) translateY(-20px); }
     }
     </style>
     """,
