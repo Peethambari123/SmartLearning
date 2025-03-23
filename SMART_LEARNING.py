@@ -85,7 +85,7 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# Custom CSS for 3D green-themed background
+# Custom CSS for animated 3D green-themed background
 st.markdown(
     """
     <style>
@@ -108,16 +108,29 @@ st.markdown(
         padding: 10px 20px;
         border: none;
         transform: translateZ(50px);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateZ(70px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
     }
     .stTextInput>div>div>input {
         background-color: rgba(255, 255, 255, 0.8);
         border-radius: 5px;
         padding: 10px;
         transform: translateZ(30px);
+        transition: transform 0.3s ease;
+    }
+    .stTextInput>div>div>input:focus {
+        transform: translateZ(50px);
     }
     .stRadio>div>label {
         color: white;
         transform: translateZ(20px);
+        transition: transform 0.3s ease;
+    }
+    .stRadio>div>label:hover {
+        transform: translateZ(40px);
     }
     .stMarkdown {
         color: white;
