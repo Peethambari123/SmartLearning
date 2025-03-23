@@ -54,22 +54,15 @@ def search_youtube(query: str, max_results: int = 5):
         videos.append({"title": video_title, "link": video_link})
     return videos
 
-# Function to fetch quiz questions from Open Trivia Database API
-def get_quiz_questions(topic: str, amount: int = 5):
+# Function to generate quiz questions from PDF text using Gemini API
+def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
     """
-    Fetch quiz questions from Open Trivia Database API based on the topic.
+    Generate quiz questions from the PDF text using Gemini API.
     """
-    url = "https://rapidapi.com/lewispour1994/api/trivia-quiz-questions-api/playground/apiendpoint_25e25671-4d13-4802-85f4-f108eeda63bb"
-    params = {
-        "amount": amount,
-        "category": topic,  # Use category IDs (e.g., 18 for computers)
-        "type": "multiple"  # Multiple-choice questions
-    }
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
-        return response.json()["results"]
-    else:
-        return None
+    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options and a correct answer."
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
+    return response.text
 
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
