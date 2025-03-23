@@ -3,7 +3,6 @@ import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
-import requests  # For Open Trivia Database API integration
 
 # Configure Google Gemini API key
 API_KEY = "AIzaSyAPS9hfiQ-IlF3HzybSt-SGR_ZP4S3ONgU"
@@ -59,10 +58,40 @@ def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
     """
     Generate quiz questions from the PDF text using Gemini API.
     """
-    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options and a correct answer."
+    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options and a correct answer. Format the output as a list of dictionaries with 'question', 'options', and 'correct_answer' keys."
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
-    return response.text
+    try:
+        # Parse the response into a list of dictionaries
+        questions = eval(response.text)  # Convert string to list of dictionaries
+        return questions
+    except:
+        st.error("Failed to generate quiz questions. Please try again.")
+        return None
+
+# Function to calculate score and provide performance feedback
+def calculate_score(user_answers, correct_answers):
+    """
+    Calculate the user's score and provide performance feedback.
+    """
+    score = 0
+    for user_answer, correct_answer in zip(user_answers, correct_answers):
+        if user_answer == correct_answer:
+            score += 1
+    total_questions = len(correct_answers)
+    percentage = (score / total_questions) * 100
+
+    # Performance feedback
+    if percentage >= 90:
+        feedback = "🎉 Excellent! You're a genius!"
+    elif percentage >= 70:
+        feedback = "👍 Great job! You did well!"
+    elif percentage >= 50:
+        feedback = "😊 Good effort! Keep practicing!"
+    else:
+        feedback = "😅 Keep learning! You'll get better!"
+
+    return score, total_questions, feedback
 
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
@@ -74,6 +103,12 @@ if "messages" not in st.session_state:
 if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
+
+if "quiz_questions" not in st.session_state:
+    st.session_state.quiz_questions = None
+
+if "user_answers" not in st.session_state:
+    st.session_state.user_answers = []
 
 # Custom CSS for #5293BB color scheme
 st.markdown(
@@ -270,12 +305,31 @@ elif app_mode == "Quiz Challenge":
         st.session_state.pdf_text = pdf_text
 
         # Step 3: Generate quiz questions from the PDF text
-        st.write("### Generating Quiz Questions...")
-        with st.spinner("Generating questions from the PDF..."):
-            quiz_questions = generate_quiz_from_pdf(pdf_text)
+        if st.session_state.quiz_questions is None:
+            st.write("### Generating Quiz Questions...")
+            with st.spinner("Generating questions from the PDF..."):
+                st.session_state.quiz_questions = generate_quiz_from_pdf(pdf_text)
 
-        if quiz_questions:
+        if st.session_state.quiz_questions:
             st.write("### Quiz Questions")
-            st.write(quiz_questions)  # Display the generated quiz questions
+            st.session_state.user_answers = []  # Reset user answers
+            correct_answers = []
+
+            for i, question in enumerate(st.session_state.quiz_questions):
+                st.write(f"**Question {i+1}:** {question['question']}")
+                options = question['options']
+                user_answer = st.radio(
+                    f"Options for Question {i+1}",
+                    options,
+                    key=f"quiz_{i}"
+                )
+                st.session_state.user_answers.append(user_answer)
+                correct_answers.append(question['correct_answer'])
+
+            # Step 4: Submit answers and calculate score
+            if st.button("Submit Answers"):
+                score, total_questions, feedback = calculate_score(st.session_state.user_answers, correct_answers)
+                st.write(f"### Your Score: {score}/{total_questions}")
+                st.write(f"**Performance Feedback:** {feedback}")
         else:
             st.write("Failed to generate quiz questions. Please try again.")
