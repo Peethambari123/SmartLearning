@@ -3,6 +3,7 @@ import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
+import requests  # For Open Trivia Database API integration
 
 # Configure Google Gemini API key
 API_KEY = "AIzaSyAPS9hfiQ-IlF3HzybSt-SGR_ZP4S3ONgU"
@@ -52,6 +53,23 @@ def search_youtube(query: str, max_results: int = 5):
         video_link = f"https://www.youtube.com/watch?v={video_id}"
         videos.append({"title": video_title, "link": video_link})
     return videos
+
+# Function to fetch quiz questions from Open Trivia Database API
+def get_quiz_questions(topic: str, amount: int = 5):
+    """
+    Fetch quiz questions from Open Trivia Database API based on the topic.
+    """
+    url = "https://opentdb.com/api.php"
+    params = {
+        "amount": amount,
+        "category": topic,  # Use category IDs (e.g., 18 for computers)
+        "type": "multiple"  # Multiple-choice questions
+    }
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        return response.json()["results"]
+    else:
+        return None
 
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
@@ -138,11 +156,11 @@ st.markdown(
 
 # Streamlit app interface
 st.title("🤖 Chatbot & PDF Query App")
-st.write("Welcome! You can chat with the AI, upload a PDF to query its content, or search for YouTube videos.")
+st.write("Welcome! You can chat with the AI, upload a PDF to query its content, search for YouTube videos, or take a quiz.")
 
 # Sidebar for navigation
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube"])
+app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"])
 
 # Chat with AI mode
 if app_mode == "Chat with AI":
@@ -233,3 +251,39 @@ elif app_mode == "Search YouTube":
                 st.write(f"- [{video['title']}]({video['link']})")
         else:
             st.write("No videos found for your query.")
+
+# Quiz Challenge mode
+elif app_mode == "Quiz Challenge":
+    st.header("Quiz Challenge")
+    st.write("Test your knowledge on a topic by taking a quiz.")
+
+    # Step 1: Ask the user to enter a topic for the quiz
+    quiz_topic = st.text_input("Enter a topic for the quiz (e.g., Science, Computers, History):")
+
+    if quiz_topic:
+        # Step 2: Fetch quiz questions from Open Trivia Database API
+        st.write(f"Fetching quiz questions for: **{quiz_topic}**")
+        with st.spinner("Loading questions..."):
+            questions = get_quiz_questions(quiz_topic)
+
+        if questions:
+            st.write("### Quiz Questions")
+            for i, question in enumerate(questions):
+                st.write(f"**Question {i+1}:** {question['question']}")
+
+                # Display multiple-choice options
+                options = [question['correct_answer']] + question['incorrect_answers']
+                user_answer = st.radio(
+                    f"Options for Question {i+1}",
+                    options,
+                    key=f"quiz_{i}"
+                )
+
+                # Check if the user wants to submit their answer
+                if st.button(f"Submit Answer for Question {i+1}"):
+                    if user_answer == question['correct_answer']:
+                        st.success("✅ Correct! Well done!")
+                    else:
+                        st.error(f"❌ Incorrect. The correct answer is: **{question['correct_answer']}**")
+        else:
+            st.write("No quiz questions found for this topic. Please try another topic.")
