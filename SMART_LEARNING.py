@@ -294,6 +294,7 @@ elif app_mode == "Quiz Challenge":
         user_answers = {}
         for i, q in enumerate(questions, 1):
             st.markdown(f"**Question {i}: {q['text']}**")
+            # Display options without revealing the correct answer
             user_answer = st.radio(
                 f"Select your answer for Question {i}",
                 q["options"],
