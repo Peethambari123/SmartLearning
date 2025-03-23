@@ -14,7 +14,7 @@ YOUTUBE_API_KEY = "AIzaSyDjjpWFszcgYsc4qc_4cFh5n62kRBzUVqo"  # Replace with your
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 # QuizAPI configuration
-QUIZAPI_KEY = "HKGaIJc4esPrRPUuoD3z7vpNxv4rrqy7vEYmNTgW"  # Replace with your QuizAPI key
+QUIZAPI_KEY = "https://opentdb.com/api_config.php"  # Replace with your QuizAPI key
 
 # Function to read the PDF file
 def read_pdf(file_path):
