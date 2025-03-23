@@ -2,9 +2,9 @@ st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(135deg, #1e3c72, #2a5298, #1c3f6e);
+        background: linear-gradient(135deg, #87CEEB, #FFD700, #FF6347);
         background-size: 400% 400%;
-        animation: gradientBG 10s ease infinite;
+        animation: gradientBG 15s ease infinite;
         perspective: 1000px;
         overflow: hidden;
     }
@@ -14,7 +14,7 @@ st.markdown(
         100% { background-position: 0% 50%; }
     }
     .stButton>button {
-        background-color: #4A90E2;
+        background-color: #4682B4; /* Ocean blue */
         color: white;
         border-radius: 5px;
         padding: 10px 20px;
