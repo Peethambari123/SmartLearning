@@ -248,35 +248,34 @@ elif app_mode == "Search YouTube":
 # Quiz Challenge mode
 elif app_mode == "Quiz Challenge":
     st.header("Quiz Challenge")
-    st.write("Test your knowledge on a topic by taking a quiz.")
+    st.write("Upload a PDF and take a quiz based on its content.")
 
-    # Step 1: Ask the user to enter a topic for the quiz
-    quiz_topic = st.text_input("Enter a topic for the quiz (e.g., Science, Computers, History):")
+    # Step 1: Ask the user to upload a PDF file
+    uploaded_file = st.file_uploader("Please upload a PDF file", type="pdf")
 
-    if quiz_topic:
-        # Step 2: Fetch quiz questions from Open Trivia Database API
-        st.write(f"Fetching quiz questions for: **{quiz_topic}**")
-        with st.spinner("Loading questions..."):
-            questions = get_quiz_questions(quiz_topic)
+    if uploaded_file is not None:
+        # Ensure the directory exists
+        temp_dir = "temp"
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
 
-        if questions:
+        # Save the uploaded file to a temporary location
+        temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+        with open(temp_file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        # Step 2: Extract text from the uploaded PDF
+        pdf_text = read_pdf(temp_file_path)
+        st.session_state.uploaded_file = uploaded_file
+        st.session_state.pdf_text = pdf_text
+
+        # Step 3: Generate quiz questions from the PDF text
+        st.write("### Generating Quiz Questions...")
+        with st.spinner("Generating questions from the PDF..."):
+            quiz_questions = generate_quiz_from_pdf(pdf_text)
+
+        if quiz_questions:
             st.write("### Quiz Questions")
-            for i, question in enumerate(questions):
-                st.write(f"**Question {i+1}:** {question['question']}")
-
-                # Display multiple-choice options
-                options = [question['correct_answer']] + question['incorrect_answers']
-                user_answer = st.radio(
-                    f"Options for Question {i+1}",
-                    options,
-                    key=f"quiz_{i}"
-                )
-
-                # Check if the user wants to submit their answer
-                if st.button(f"Submit Answer for Question {i+1}"):
-                    if user_answer == question['correct_answer']:
-                        st.success("✅ Correct! Well done!")
-                    else:
-                        st.error(f"❌ Incorrect. The correct answer is: **{question['correct_answer']}**")
+            st.write(quiz_questions)  # Display the generated quiz questions
         else:
-            st.write("No quiz questions found for this topic. Please try another topic.")
+            st.write("Failed to generate quiz questions. Please try again.")
