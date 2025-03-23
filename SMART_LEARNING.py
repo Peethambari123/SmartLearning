@@ -64,12 +64,12 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# Custom CSS for learning-themed background
+# Custom CSS for unique education-themed background
 st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(135deg, #6a11cb, #2575fc, #00d2ff);
+        background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fbc2eb, #a6c1ee, #f6d365);
         background-size: 400% 400%;
         animation: gradientBG 15s ease infinite;
         perspective: 1000px;
@@ -81,7 +81,7 @@ st.markdown(
         100% { background-position: 0% 50%; }
     }
     .stButton>button {
-        background-color: #2575fc; /* Learning blue */
+        background-color: #4A90E2; /* Learning blue */
         color: white;
         border-radius: 5px;
         padding: 10px 20px;
@@ -127,7 +127,7 @@ st.markdown(
         left: 0;
         width: 100%;
         height: 100%;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.1'/%3E%3C/svg%3E");
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M50 10L60 30H40L50 10ZM50 90L40 70H60L50 90ZM10 50L30 60V40L10 50ZM90 50L70 40V60L90 50Z' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.1'/%3E%3C/svg%3E");
         opacity: 0.1;
         pointer-events: none;
     }
