@@ -85,6 +85,39 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
+# Custom CSS for nature-themed background
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-image: url("https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 5px;
+        padding: 10px 20px;
+        border: none;
+    }
+    .stTextInput>div>div>input {
+        background-color: rgba(255, 255, 255, 0.8);
+        border-radius: 5px;
+        padding: 10px;
+    }
+    .stRadio>div>label {
+        color: white;
+    }
+    .stMarkdown {
+        color: white;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Streamlit app interface
 st.title("🤖 Chatbot & PDF Query App")
 st.write("Welcome! You can chat with the AI, upload a PDF to query its content, search for YouTube videos, or take a quiz.")
