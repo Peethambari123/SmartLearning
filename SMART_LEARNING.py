@@ -3,7 +3,6 @@ import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
-import requests  # For Open Trivia Database API integration (unused in this version)
 
 # Configure Google Gemini API key
 API_KEY = "AIzaSyAPS9hfiQ-IlF3HzybSt-SGR_ZP4S3ONgU"
@@ -26,9 +25,7 @@ def read_pdf(file_path):
 
 # Function to query the Gemini LLM with preloaded context (CAG)
 def query_with_cag(context: str, query: str) -> str:
-    """
-    Query the Gemini LLM with preloaded context using Cache-Augmented Generation.
-    """
+    """Query the Gemini LLM with preloaded context using Cache-Augmented Generation."""
     prompt = f"Context:\n{context}\n\nQuery: {query}\nAnswer:"
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
@@ -36,9 +33,7 @@ def query_with_cag(context: str, query: str) -> str:
 
 # Function to search YouTube and generate links
 def search_youtube(query: str, max_results: int = 5):
-    """
-    Search YouTube for videos related to the query and return their links.
-    """
+    """Search YouTube for videos related to the query and return their links."""
     request = youtube.search().list(
         q=query,
         part="snippet",
@@ -56,10 +51,8 @@ def search_youtube(query: str, max_results: int = 5):
 
 # Function to generate quiz questions from PDF text using Gemini API
 def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
-    """
-    Generate quiz questions from the PDF text using Gemini API.
-    """
-    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options and a correct answer."
+    """Generate quiz questions from the PDF text using Gemini API."""
+    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options (a), b), c), d)) and a correct answer labeled as 'Correct Answer:'."
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
     return response.text
@@ -80,7 +73,7 @@ st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(135deg, #5293BB, #6EB1D6); /* Deep blue gradient */
+        background: linear-gradient(135deg, #5293BB, #6EB1D6);
         background-size: 400% 400%;
         animation: gradientBG 15s ease infinite;
         perspective: 1000px;
@@ -92,7 +85,7 @@ st.markdown(
         100% { background-position: 0% 50%; }
     }
     .stButton>button {
-        background-color: #5293BB; /* Deep blue */
+        background-color: #5293BB;
         color: white;
         border-radius: 5px;
         padding: 10px 20px;
@@ -130,7 +123,6 @@ st.markdown(
         color: white;
         transform: translateZ(40px);
     }
-    /* Add a subtle pattern overlay */
     .stApp::before {
         content: "";
         position: absolute;
@@ -167,54 +159,84 @@ if app_mode == "Chat with AI":
 
     # Chat input
     if prompt := st.chat_input("Say something..."):
-        # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Get AI response
         response = st.session_state.chat.send_message(prompt)
-
-        # Add AI response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response.text})
         with st.chat_message("assistant"):
             st.markdown(response.text)
 
 # Query a PDF mode
-elif app_mode == "Quiz Challenge":
-    st.header("Quiz Challenge")
-    st.write("Upload a PDF and take a quiz based on its content.")
+elif app_mode == "Query a PDF":
+    st.header("Query a PDF")
+    st.write("Upload a PDF and ask questions about its content.")
 
-    # Step 1: Ask the user to upload a PDF file
-    uploaded_file = st.file_uploader("Please upload a PDF file", type="pdf", key="quiz_pdf_uploader")
-
+    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
     if uploaded_file is not None:
-        # Ensure the directory exists
         temp_dir = "temp"
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
-        # Save the uploaded file to a temporary location
         temp_file_path = os.path.join(temp_dir, uploaded_file.name)
         with open(temp_file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        # Step 2: Extract text from the uploaded PDF
+        pdf_text = read_pdf(temp_file_path)
+        st.session_state.uploaded_file = uploaded_file
+        st.session_state.pdf_text = pdf_text
+        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)
+
+    if st.session_state.pdf_text:
+        query = st.text_input("Ask a question about the PDF:")
+        if query:
+            with st.spinner("Processing your query..."):
+                answer = query_with_cag(st.session_state.pdf_text, query)
+                st.markdown(f"**Answer:** {answer}")
+
+# Search YouTube mode
+elif app_mode == "Search YouTube":
+    st.header("Search YouTube")
+    st.write("Search for YouTube videos related to your query.")
+
+    youtube_query = st.text_input("Enter a search term:")
+    if youtube_query:
+        with st.spinner("Searching YouTube..."):
+            videos = search_youtube(youtube_query)
+            st.write("### Results:")
+            for video in videos:
+                st.markdown(f"[{video['title']}]({video['link']})")
+
+# Quiz Challenge mode
+elif app_mode == "Quiz Challenge":
+    st.header("Quiz Challenge")
+    st.write("Upload a PDF and take a quiz based on its content.")
+
+    uploaded_file = st.file_uploader("Please upload a PDF file", type="pdf", key="quiz_pdf_uploader")
+    if uploaded_file is not None:
+        temp_dir = "temp"
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
+        temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+        with open(temp_file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
         pdf_text = ""
         try:
             pdf_text = read_pdf(temp_file_path)
             if not pdf_text.strip():
                 st.error("The PDF appears to be empty or text could not be extracted.")
-                st.stop()  # Halt execution here
+                st.stop()
         except Exception as e:
             st.error(f"Error extracting text from PDF: {str(e)}")
-            st.stop()  # Halt execution here
+            st.stop()
 
         st.session_state.uploaded_file = uploaded_file
         st.session_state.pdf_text = pdf_text
-        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)  # Optional preview
+        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)
 
-        # Step 3: Generate quiz questions from the PDF text
         st.write("### Generating Quiz Questions...")
         quiz_questions = ""
         with st.spinner("Generating questions from the PDF..."):
@@ -222,14 +244,12 @@ elif app_mode == "Quiz Challenge":
                 quiz_questions = generate_quiz_from_pdf(pdf_text)
                 if not quiz_questions:
                     st.error("No quiz questions were generated. The PDF content might be insufficient.")
-                    st.stop()  # Halt execution here
-                # Log the raw response for debugging
-                st.text_area("Raw Quiz Output (Debug)", quiz_questions, height=200)
+                    st.stop()
             except Exception as e:
                 st.error(f"Error generating quiz questions: {str(e)}")
-                st.stop()  # Halt execution here
+                st.stop()
 
-        # Step 4: Parse the quiz questions into a structured format
+        # Parse the quiz questions into a structured format
         lines = quiz_questions.split("\n")
         questions = []
         current_question = {}
@@ -239,34 +259,49 @@ elif app_mode == "Quiz Challenge":
             line = line.strip()
             if not line:
                 continue
-            if line[0].isdigit() and "." in line[:3]:  # e.g., "1. What is..."
-                if current_question:
+            # Match question (e.g., "1. What is...")
+            if line[0].isdigit() and "." in line[:3]:
+                if current_question and options:
                     current_question["options"] = options
                     questions.append(current_question)
-                current_question = {"text": line.split(".", 1)[1].strip()}
+                question_text = line.split(".", 1)[1].strip()
+                current_question = {"text": question_text}
                 options = []
-            elif line.startswith(("a)", "b)", "c)", "d)")):
+            # Match options (e.g., "a) Some text")
+            elif any(line.startswith(opt) for opt in ["a)", "b)", "c)", "d)"]):
                 options.append(line)
-            elif line.startswith("Correct Answer:"):
-                current_question["correct"] = line.split(":", 1)[1].strip()
+            # Match correct answer (e.g., "Correct Answer: c)")
+            elif line.lower().startswith("correct answer:"):
+                correct_answer = line.split(":", 1)[1].strip()
+                for opt in options:
+                    if opt.startswith(correct_answer):
+                        current_question["correct"] = opt
+                        break
+                else:
+                    current_question["correct"] = correct_answer
 
-        if current_question and options:  # Append the last question
+        if current_question and options:
             current_question["options"] = options
             questions.append(current_question)
 
-        if not questions:
-            st.error("Could not parse quiz questions from the generated output. See the raw output above for details.")
-            st.stop()  # Halt execution here
+        if not questions or any(not q.get("correct") or not q.get("options") for q in questions):
+            st.error("Failed to parse quiz questions properly. Raw output:")
+            st.text_area("Raw Quiz Output (Debug)", quiz_questions, height=200)
+            st.stop()
 
-        # Step 5: Display quiz and collect user answers
+        # Display quiz and collect user answers
         st.write("### Quiz Questions")
         user_answers = {}
         for i, q in enumerate(questions, 1):
             st.markdown(f"**Question {i}: {q['text']}**")
-            user_answer = st.radio(f"Select your answer for Question {i}", q["options"], key=f"quiz_q{i}")
+            user_answer = st.radio(
+                f"Select your answer for Question {i}",
+                q["options"],
+                key=f"quiz_q{i}"
+            )
             user_answers[i] = user_answer
 
-        # Step 6: Submit and evaluate
+        # Submit and evaluate
         if st.button("Submit Quiz"):
             score = 0
             feedback = []
@@ -283,7 +318,6 @@ elif app_mode == "Quiz Challenge":
                     "is_correct": is_correct
                 })
 
-            # Step 7: Display score and detailed feedback
             st.write(f"### Your Score: {score}/{len(questions)} ({(score/len(questions))*100:.1f}%)")
             st.write("### Detailed Feedback")
             for fb in feedback:
