@@ -85,15 +85,21 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# Custom CSS for nature-themed background
+# Custom CSS for 3D green-themed background
 st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
+        background: linear-gradient(135deg, #1e3d1e, #2d5a2d, #3c7a3c);
+        background-size: 400% 400%;
+        animation: gradientBG 10s ease infinite;
+        perspective: 1000px;
+        overflow: hidden;
+    }
+    @keyframes gradientBG {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
     }
     .stButton>button {
         background-color: #4CAF50;
@@ -101,17 +107,25 @@ st.markdown(
         border-radius: 5px;
         padding: 10px 20px;
         border: none;
+        transform: translateZ(50px);
     }
     .stTextInput>div>div>input {
         background-color: rgba(255, 255, 255, 0.8);
         border-radius: 5px;
         padding: 10px;
+        transform: translateZ(30px);
     }
     .stRadio>div>label {
         color: white;
+        transform: translateZ(20px);
     }
     .stMarkdown {
         color: white;
+        transform: translateZ(10px);
+    }
+    .stHeader {
+        color: white;
+        transform: translateZ(40px);
     }
     </style>
     """,
