@@ -59,7 +59,7 @@ def get_quiz_questions(topic: str, amount: int = 5):
     """
     Fetch quiz questions from Open Trivia Database API based on the topic.
     """
-    url = "https://opentdb.com/api.php"
+    url = "https://rapidapi.com/lewispour1994/api/trivia-quiz-questions-api/playground/apiendpoint_25e25671-4d13-4802-85f4-f108eeda63bb"
     params = {
         "amount": amount,
         "category": topic,  # Use category IDs (e.g., 18 for computers)
