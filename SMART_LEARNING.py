@@ -58,15 +58,37 @@ def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
     """
     Generate quiz questions from the PDF text using Gemini API.
     """
-    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options and a correct answer. Format the output as a list of dictionaries with 'question', 'options', and 'correct_answer' keys."
+    prompt = f"""
+    Generate {num_questions} multiple-choice questions based on the following text:
+    {pdf_text}
+
+    Format the output as a list of dictionaries, where each dictionary has the following keys:
+    - "question": The question text.
+    - "options": A list of 4 options (including the correct answer).
+    - "correct_answer": The correct answer (must match one of the options).
+
+    Example:
+    [
+        {{
+            "question": "What is the capital of France?",
+            "options": ["Paris", "London", "Berlin", "Madrid"],
+            "correct_answer": "Paris"
+        }},
+        {{
+            "question": "Which planet is known as the Red Planet?",
+            "options": ["Earth", "Mars", "Jupiter", "Saturn"],
+            "correct_answer": "Mars"
+        }}
+    ]
+    """
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
     try:
         # Parse the response into a list of dictionaries
         questions = eval(response.text)  # Convert string to list of dictionaries
         return questions
-    except:
-        st.error("Failed to generate quiz questions. Please try again.")
+    except Exception as e:
+        st.error(f"Failed to generate quiz questions. Error: {e}")
         return None
 
 # Function to calculate score and provide performance feedback
