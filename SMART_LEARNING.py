@@ -64,12 +64,12 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# Custom CSS for pink + blue color scheme
+# Custom CSS for #6EB1D6 color scheme
 st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(135deg, #ff9a9e, #a6c1ee); /* Pink and Blue */
+        background: linear-gradient(135deg, #6EB1D6, #A8D8EA); /* Soft blue gradient */
         background-size: 400% 400%;
         animation: gradientBG 15s ease infinite;
         perspective: 1000px;
@@ -81,7 +81,7 @@ st.markdown(
         100% { background-position: 0% 50%; }
     }
     .stButton>button {
-        background-color: #4A90E2; /* Learning blue */
+        background-color: #6EB1D6; /* Soft blue */
         color: white;
         border-radius: 5px;
         padding: 10px 20px;
