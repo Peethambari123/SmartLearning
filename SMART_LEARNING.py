@@ -64,12 +64,12 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# Custom CSS for mix-matching colors background
+# Custom CSS for pink + blue color scheme
 st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(135deg, #6a11cb, #f6d365);
+        background: linear-gradient(135deg, #ff9a9e, #a6c1ee); /* Pink and Blue */
         background-size: 400% 400%;
         animation: gradientBG 15s ease infinite;
         perspective: 1000px;
