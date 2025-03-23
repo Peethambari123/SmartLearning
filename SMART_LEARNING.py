@@ -3,6 +3,7 @@ import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
+import requests  # For QuizAPI integration
 
 # Configure Google Gemini API key
 API_KEY = "AIzaSyAPS9hfiQ-IlF3HzybSt-SGR_ZP4S3ONgU"
@@ -11,6 +12,9 @@ genai.configure(api_key=API_KEY)
 # Configure YouTube Data API key
 YOUTUBE_API_KEY = "AIzaSyDjjpWFszcgYsc4qc_4cFh5n62kRBzUVqo"  # Replace with your YouTube API key
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+# QuizAPI configuration
+QUIZAPI_KEY = "HKGaIJc4esPrRPUuoD3z7vpNxv4rrqy7vEYmNTgW"  # Replace with your QuizAPI key
 
 # Function to read the PDF file
 def read_pdf(file_path):
@@ -53,6 +57,23 @@ def search_youtube(query: str, max_results: int = 5):
         videos.append({"title": video_title, "link": video_link})
     return videos
 
+# Function to get challenges from QuizAPI
+def get_challenges(topic: str, limit: int = 5):
+    """
+    Fetch quiz questions from QuizAPI based on the topic.
+    """
+    url = "https://quizapi.io/api/v1/questions"
+    params = {
+        "apiKey": QUIZAPI_KEY,
+        "category": topic,
+        "limit": limit
+    }
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
+
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
     st.session_state.chat = genai.GenerativeModel('gemini-1.5-flash').start_chat(history=[])
@@ -66,11 +87,11 @@ if "uploaded_file" not in st.session_state:
 
 # Streamlit app interface
 st.title("🤖 Chatbot & PDF Query App")
-st.write("Welcome! You can chat with the AI, upload a PDF to query its content, or search for YouTube videos.")
+st.write("Welcome! You can chat with the AI, upload a PDF to query its content, search for YouTube videos, or take a quiz.")
 
 # Sidebar for navigation
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube"])
+app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube", "Take a Quiz"])
 
 # Chat with AI mode
 if app_mode == "Chat with AI":
@@ -161,3 +182,31 @@ elif app_mode == "Search YouTube":
                 st.write(f"- [{video['title']}]({video['link']})")
         else:
             st.write("No videos found for your query.")
+
+# Take a Quiz mode
+elif app_mode == "Take a Quiz":
+    st.header("Take a Quiz")
+    st.write("Test your knowledge on a topic by taking a quiz.")
+
+    # Step 1: Ask the user to enter a topic for the quiz
+    quiz_topic = st.text_input("Enter a topic for the quiz:")
+
+    if quiz_topic:
+        # Step 2: Fetch quiz questions from QuizAPI
+        st.write(f"Fetching quiz questions for: {quiz_topic}")
+        challenges = get_challenges(quiz_topic)
+
+        if challenges:
+            st.write("### Quiz Questions")
+            for i, question in enumerate(challenges):
+                st.write(f"**Question {i+1}:** {question['question']}")
+                options = [v for k, v in question['answers'].items() if v is not None]
+                user_answer = st.radio(f"Options for Question {i+1}", options, key=f"quiz_{i}")
+                if st.button(f"Submit Answer for Question {i+1}"):
+                    correct_answer = question['correct_answers']
+                    if user_answer == correct_answer:
+                        st.success("Correct! 🎉")
+                    else:
+                        st.error("Incorrect. Try again! 🚫")
+        else:
+            st.write("No quiz questions found for this topic.")
