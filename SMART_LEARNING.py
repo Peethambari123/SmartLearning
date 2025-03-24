@@ -4,353 +4,340 @@ import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+import pdfplumber  # More reliable PDF text extraction
 
-# Configure Google Gemini API key
-API_KEY = "AIzaSyAPS9hfiQ-IlF3HzybSt-SGR_ZP4S3ONgU"
+# --- Configuration ---
+# Use environment variables or Streamlit secrets for API keys
+API_KEY = st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY"))
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", os.getenv("YOUTUBE_API_KEY"))
+
+if not API_KEY or not YOUTUBE_API_KEY:
+    st.error("API keys not configured. Please set GEMINI_API_KEY and YOUTUBE_API_KEY.")
+    st.stop()
+
 genai.configure(api_key=API_KEY)
-
-# Configure YouTube Data API key
-YOUTUBE_API_KEY = "AIzaSyDjjpWFszcgYsc4qc_4cFh5n62kRBzUVqo"  # Replace with your YouTube API key
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
-# Function to read the PDF file
+# --- Functions ---
 def read_pdf(file_path):
-    """Reads the text from a PDF file."""
-    with open(file_path, 'rb') as file:
-        reader = PdfReader(file)
-        text = ""
-        for page_num in range(len(reader.pages)):
-            page = reader.pages[page_num]
-            text += page.extract_text()
-    return text
+    """Extract text from PDF using pdfplumber (more reliable than PyPDF2)"""
+    text = ""
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""  # Handle None returns
+    except Exception as e:
+        st.error(f"PDF extraction error: {str(e)}")
+    return text.strip()
 
-# Function to query the Gemini LLM with preloaded context (CAG)
 def query_with_cag(context: str, query: str) -> str:
-    """Query the Gemini LLM with preloaded context using Cache-Augmented Generation."""
-    prompt = f"Context:\n{context}\n\nQuery: {query}\nAnswer:"
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    """Query Gemini with context using Cache-Augmented Generation"""
+    try:
+        prompt = f"Context:\n{context}\n\nQuery: {query}\nAnswer concisely:"
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-# Function to search YouTube and generate links
 def search_youtube(query: str, max_results: int = 5):
-    """Search YouTube for videos related to the query and return their links."""
-    request = youtube.search().list(
-        q=query,
-        part="snippet",
-        type="video",
-        maxResults=max_results
-    )
-    response = request.execute()
-    videos = []
-    for item in response["items"]:
-        video_id = item["id"]["videoId"]
-        video_title = item["snippet"]["title"]
-        video_link = f"https://www.youtube.com/watch?v={video_id}"
-        videos.append({"title": video_title, "link": video_link})
-    return videos
+    """Search YouTube safely with error handling"""
+    try:
+        request = youtube.search().list(
+            q=query,
+            part="snippet",
+            type="video",
+            maxResults=max_results
+        )
+        response = request.execute()
+        return [
+            {
+                "title": item["snippet"]["title"],
+                "link": f"https://youtube.com/watch?v={item['id']['videoId']}"
+            }
+            for item in response.get("items", [])
+        ]
+    except HttpError as e:
+        st.error(f"YouTube API error: {e.resp.status} {e._get_reason()}")
+        return []
+    except Exception as e:
+        st.error(f"Search error: {str(e)}")
+        return []
 
-# Function to generate quiz questions from PDF text using Gemini API
-def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
-    """Generate quiz questions from the PDF text using Gemini API."""
-    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options (a), b), c), d)) and a correct answer labeled as 'Correct Answer:'."
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content(prompt)
-    return response.text
+def generate_quiz(pdf_text: str, num_questions: int = 5):
+    """Generate formatted quiz questions with Gemini"""
+    try:
+        prompt = f"""Generate {num_questions} MCQ questions from this text. Format each as:
+        Q1. [Question]
+        a) [Option1] 
+        b) [Option2]
+        c) [Option3]
+        d) [Option4]
+        Correct Answer: [Letter]
+        ---
+        Text: {pdf_text[:10000]}"""  # Limit context length
+        
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        return parse_quiz(response.text)
+    except Exception as e:
+        st.error(f"Quiz generation failed: {str(e)}")
+        return []
 
-# Initialize session state for chat and PDF
+def parse_quiz(raw_text: str):
+    """Parse Gemini's response into structured questions"""
+    questions = []
+    current_q = {}
+    
+    for line in raw_text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Question detected
+        if line.startswith(("Q", "Question")) and "." in line[:5]:
+            if current_q:
+                questions.append(current_q)
+            current_q = {
+                "text": line.split(".", 1)[1].strip(),
+                "options": [],
+                "correct": None
+            }
+            
+        # Option detected
+        elif line[:2].lower() in ["a)", "b)", "c)", "d)"]:
+            current_q["options"].append(line)
+            
+        # Correct answer detected
+        elif "correct answer:" in line.lower():
+            current_q["correct"] = line.split(":")[1].strip().lower()[0]  # Extract 'a', 'b', etc.
+    
+    if current_q:
+        questions.append(current_q)
+    return questions
+
+# --- UI Setup ---
+# Custom CSS with #5293BB (blue) and #E05A7F (pink) theme
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #5293BB, #6EB1D6);
+    color: white;
+}
+.stButton>button {
+    background-color: #E05A7F !important;
+    color: white !important;
+    border: none;
+    transition: all 0.3s;
+}
+.stButton>button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(224, 90, 127, 0.3);
+}
+.pink-card {
+    background-color: #E05A7F;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+    color: white;
+}
+.timer {
+    font-size: 1.5rem;
+    color: #E05A7F;
+    font-weight: bold;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --- Session State ---
 if "chat" not in st.session_state:
     st.session_state.chat = genai.GenerativeModel('gemini-1.5-flash').start_chat(history=[])
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "uploaded_file" not in st.session_state:
-    st.session_state.uploaded_file = None
-    st.session_state.pdf_text = None
+if "quiz" not in st.session_state:
+    st.session_state.quiz = {
+        "start_time": None,
+        "time_left": 300,
+        "answers": {},
+        "submitted": False,
+        "questions": []
+    }
 
-# Custom CSS for #5293BB color scheme
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background: linear-gradient(135deg, #5293BB, #6EB1D6);
-        background-size: 400% 400%;
-        animation: gradientBG 15s ease infinite;
-        perspective: 1000px;
-        overflow: hidden;
-    }
-    @keyframes gradientBG {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-    .stButton>button {
-        background-color: #E05A7F;
-        color: white;
-        border-radius: 5px;
-        padding: 10px 20px;
-        border: none;
-        transform: translateZ(50px);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .stButton>button:hover {
-        transform: translateZ(70px);
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-    }
-    .stTextInput>div>div>input {
-        background-color: rgba(255, 255, 255, 0.8);
-        border-radius: 5px;
-        padding: 10px;
-        transform: translateZ(30px);
-        transition: transform 0.3s ease;
-    }
-    .stTextInput>div>div>input:focus {
-        transform: translateZ(50px);
-    }
-    .stRadio>div>label {
-        color: white;
-        transform: translateZ(20px);
-        transition: transform 0.3s ease;
-    }
-    .stRadio>div>label:hover {
-        transform: translateZ(40px);
-    }
-    .stMarkdown {
-        color: white;
-        transform: translateZ(10px);
-    }
-    .stHeader {
-        color: white;
-        transform: translateZ(40px);
-    }
-    .stApp::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M50 10L60 30H40L50 10ZM50 90L40 70H60L50 90ZM10 50L30 60V40L10 50ZM90 50L70 40V60L90 50Z' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.1'/%3E%3C/svg%3E");
-        opacity: 0.1;
-        pointer-events: none;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# --- App Interface ---
+st.title("🤖 Smart Study Assistant")
+st.caption("Chat with AI • Query PDFs • YouTube Search • Quiz Generator")
 
-# Streamlit app interface
-st.title("🤖 Chatbot & PDF Query App")
-st.write("Welcome! You can chat with the AI, upload a PDF to query its content, search for YouTube videos, or take a quiz.")
+# Sidebar Navigation
+with st.sidebar:
+    st.title("Navigation")
+    mode = st.radio("Choose Mode", [
+        "💬 Chat with AI", 
+        "📄 Query PDF", 
+        "🎥 YouTube Search", 
+        "✏️ Quiz Generator"
+    ])
 
-# Sidebar for navigation
-st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"])
-
-# Chat with AI mode
-if app_mode == "Chat with AI":
-    st.header("Chat with AI")
-    st.write("Ask me anything!")
-
+# --- Mode Handlers ---
+# Chat Mode
+if "Chat" in mode:
+    st.header("💬 AI Chat Assistant")
+    
     # Display chat history
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    
     # Chat input
-    if prompt := st.chat_input("Say something..."):
+    if prompt := st.chat_input("Ask me anything..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
+        
         with st.chat_message("user"):
             st.markdown(prompt)
-
-        response = st.session_state.chat.send_message(prompt)
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
-        with st.chat_message("assistant"):
-            st.markdown(response.text)
-
-# Query a PDF mode
-elif app_mode == "Query a PDF":
-    st.header("Query a PDF")
-    st.write("Upload a PDF and ask questions about its content.")
-
-    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
-    if uploaded_file is not None:
-        temp_dir = "temp"
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        temp_file_path = os.path.join(temp_dir, uploaded_file.name)
-        with open(temp_file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-
-        pdf_text = read_pdf(temp_file_path)
-        st.session_state.uploaded_file = uploaded_file
-        st.session_state.pdf_text = pdf_text
-        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)
-
-    if st.session_state.pdf_text:
-        query = st.text_input("Ask a question about the PDF:")
-        if query:
-            with st.spinner("Processing your query..."):
-                answer = query_with_cag(st.session_state.pdf_text, query)
-                st.markdown(f"**Answer:** {answer}")
-
-# Search YouTube mode
-elif app_mode == "Search YouTube":
-    st.header("Search YouTube")
-    st.write("Search for YouTube videos related to your query.")
-
-    youtube_query = st.text_input("Enter a search term:")
-    if youtube_query:
-        with st.spinner("Searching YouTube..."):
-            videos = search_youtube(youtube_query)
-            st.write("### Results:")
-            for video in videos:
-                st.markdown(f"[{video['title']}]({video['link']})")
-
-# Quiz Challenge mode
-elif app_mode == "Quiz Challenge":
-    st.header("Quiz Challenge")
-    st.write("Upload a PDF and take a timed quiz based on its content.")
-
-    # Initialize session state for quiz timer and user answers
-    if "quiz_start_time" not in st.session_state:
-        st.session_state.quiz_start_time = None
-    if "time_remaining" not in st.session_state:
-        st.session_state.time_remaining = 300  # 5 minutes (300 seconds)
-    if "user_answers" not in st.session_state:
-        st.session_state.user_answers = {}
-    if "quiz_submitted" not in st.session_state:
-        st.session_state.quiz_submitted = False
-
-    uploaded_file = st.file_uploader("Please upload a PDF file", type="pdf", key="quiz_pdf_uploader")
-    if uploaded_file is not None:
-        temp_dir = "temp"
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        temp_file_path = os.path.join(temp_dir, uploaded_file.name)
-        with open(temp_file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-
-        pdf_text = ""
-        try:
-            pdf_text = read_pdf(temp_file_path)
-            if not pdf_text.strip():
-                st.error("The PDF appears to be empty or text could not be extracted.")
-                st.stop()
-        except Exception as e:
-            st.error(f"Error extracting text from PDF: {str(e)}")
-            st.stop()
-
-        st.session_state.uploaded_file = uploaded_file
-        st.session_state.pdf_text = pdf_text
-        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)
-
-        st.write("### Generating Quiz Questions...")
-        quiz_questions = ""
-        with st.spinner("Generating questions from the PDF..."):
+        
+        with st.spinner("Thinking..."):
             try:
-                quiz_questions = generate_quiz_from_pdf(pdf_text)
-                if not quiz_questions:
-                    st.error("No quiz questions were generated. The PDF content might be insufficient.")
-                    st.stop()
+                response = st.session_state.chat.send_message(prompt)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+                with st.chat_message("assistant"):
+                    st.markdown(response.text)
             except Exception as e:
-                st.error(f"Error generating quiz questions: {str(e)}")
+                st.error(f"Chat error: {str(e)}")
+
+# PDF Query Mode
+elif "PDF" in mode:
+    st.header("📄 PDF Query Tool")
+    
+    uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+    if uploaded_file:
+        with st.spinner("Extracting text..."):
+            temp_file = f"temp_{uploaded_file.name}"
+            with open(temp_file, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            pdf_text = read_pdf(temp_file)
+            if not pdf_text:
+                st.error("Failed to extract text. Try another PDF.")
                 st.stop()
+            
+            st.session_state.pdf_text = pdf_text
+            st.success(f"Extracted {len(pdf_text.split())} words")
+            st.expander("View PDF Text").code(pdf_text[:2000] + "...")
+    
+    if "pdf_text" in st.session_state:
+        query = st.text_input("Ask about the PDF:")
+        if query:
+            with st.spinner("Searching PDF..."):
+                answer = query_with_cag(st.session_state.pdf_text[:10000], query)  # Limit context
+                st.markdown(f"**Answer:**\n{answer}")
 
-        # Parse the quiz questions into a structured format
-        lines = quiz_questions.split("\n")
-        questions = []
-        current_question = {}
-        options = []
+# YouTube Search Mode
+elif "YouTube" in mode:
+    st.header("🎥 Educational Video Search")
+    
+    search_term = st.text_input("Search YouTube for educational content:")
+    if search_term:
+        with st.spinner(f"Searching for '{search_term}'..."):
+            videos = search_youtube(search_term + " tutorial")
+            
+            if videos:
+                st.write(f"Found {len(videos)} videos:")
+                for vid in videos:
+                    st.markdown(f"📺 [{vid['title']}]({vid['link']})")
+            else:
+                st.warning("No videos found. Try another search term.")
 
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            # Match question (e.g., "1. What is...")
-            if line[0].isdigit() and "." in line[:3]:
-                if current_question and options:
-                    current_question["options"] = options
-                    questions.append(current_question)
-                question_text = line.split(".", 1)[1].strip()
-                current_question = {"text": question_text}
-                options = []
-            # Match options (e.g., "a) Some text")
-            elif any(line.startswith(opt) for opt in ["a)", "b)", "c)", "d)"]):
-                options.append(line)
-            # Match correct answer (e.g., "Correct Answer: c)")
-            elif line.lower().startswith("correct answer:"):
-                correct_answer = line.split(":", 1)[1].strip()
-                current_question["correct"] = correct_answer
-
-        if current_question and options:
-            current_question["options"] = options
-            questions.append(current_question)
-
-        if not questions or any(not q.get("correct") or not q.get("options") for q in questions):
-            st.error("Failed to parse quiz questions properly. Raw output:")
-            st.text_area("Raw Quiz Output (Debug)", quiz_questions, height=200)
-            st.stop()
-
-        # Start the quiz timer if not already started
-        if st.session_state.quiz_start_time is None:
-            st.session_state.quiz_start_time = time.time()
-
-        # Calculate time remaining
-        elapsed_time = time.time() - st.session_state.quiz_start_time
-        st.session_state.time_remaining = max(0, 300 - int(elapsed_time))  # 5 minutes limit
-
-        # Display the timer
-        st.write(f"### Time Remaining: {st.session_state.time_remaining // 60}:{st.session_state.time_remaining % 60:02d}")
-
-        # Display quiz questions if time is remaining
-        if st.session_state.time_remaining > 0 and not st.session_state.quiz_submitted:
-            st.write("### Quiz Questions")
-            for i, q in enumerate(questions, 1):
-                st.markdown(f"**Question {i}: {q['text']}**")
-                # Display options as radio buttons
-                user_answer = st.radio(
-                    f"Select your answer for Question {i}",
+# Quiz Mode
+elif "Quiz" in mode:
+    st.header("✏️ PDF Quiz Generator")
+    
+    # PDF Upload
+    quiz_file = st.file_uploader("Upload PDF for Quiz", type="pdf", key="quiz_uploader")
+    if quiz_file and not st.session_state.quiz["questions"]:
+        with st.spinner("Generating quiz..."):
+            temp_file = f"quiz_{quiz_file.name}"
+            with open(temp_file, "wb") as f:
+                f.write(quiz_file.getbuffer())
+            
+            pdf_text = read_pdf(temp_file)
+            if pdf_text:
+                st.session_state.quiz["questions"] = generate_quiz(pdf_text)
+                st.session_state.quiz["start_time"] = time.time()
+                st.success(f"Generated {len(st.session_state.quiz['questions'])} questions!")
+    
+    # Quiz Timer
+    if st.session_state.quiz["start_time"]:
+        elapsed = time.time() - st.session_state.quiz["start_time"]
+        st.session_state.quiz["time_left"] = max(0, 300 - int(elapsed))
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f'<div class="timer">⏱️ {st.session_state.quiz["time_left"]//60}:{st.session_state.quiz["time_left"]%60:02d}</div>', 
+                        unsafe_allow_html=True)
+        
+        # Auto-submit when time expires
+        if st.session_state.quiz["time_left"] <= 0:
+            st.session_state.quiz["submitted"] = True
+            st.error("Time's up! Submitting your answers...")
+    
+    # Display Questions
+    if st.session_state.quiz["questions"] and not st.session_state.quiz["submitted"]:
+        with st.form("quiz_form"):
+            for i, q in enumerate(st.session_state.quiz["questions"], 1):
+                st.markdown(f"**Q{i}. {q['text']}**")
+                st.session_state.quiz["answers"][i] = st.radio(
+                    f"Options for Q{i}",
                     q["options"],
-                    key=f"quiz_q{i}"
+                    key=f"q_{i}",
+                    label_visibility="collapsed"
                 )
-                st.session_state.user_answers[i] = user_answer
-
-            # Submit button
-            if st.button("Submit Quiz"):
-                st.session_state.quiz_submitted = True
-        else:
-            if st.session_state.time_remaining <= 0:
-                st.error("Time's up! Your quiz has been automatically submitted.")
-                st.session_state.quiz_submitted = True
-
-        # Evaluate the quiz if submitted
-        if st.session_state.quiz_submitted:
-            score = 0
-            feedback = []
-            for i, q in enumerate(questions, 1):
-                user_answer = st.session_state.user_answers.get(i)
-                correct_answer = q["correct"]
-                is_correct = user_answer == correct_answer
-                if is_correct:
-                    score += 1
-                feedback.append({
-                    "question": q["text"],
-                    "user_answer": user_answer,
-                    "correct_answer": correct_answer,
-                    "is_correct": is_correct
-                })
-
-            st.write(f"### Your Score: {score}/{len(questions)} ({(score/len(questions))*100:.1f}%)")
-            st.write("### Detailed Feedback")
-            for fb in feedback:
-                st.markdown(
-                    f"**Question:** {fb['question']}<br>"
-                    f"**Your Answer:** {fb['user_answer']}<br>"
-                    f"**Correct Answer:** {fb['correct_answer']}<br>"
-                    f"**Result:** {'✅ Correct' if fb['is_correct'] else '❌ Incorrect'}",
-                    unsafe_allow_html=True
-                )
+            
+            if st.form_submit_button("Submit Quiz"):
+                st.session_state.quiz["submitted"] = True
+    
+    # Results Display
+    if st.session_state.quiz["submitted"]:
+        score = 0
+        feedback = []
+        
+        for i, q in enumerate(st.session_state.quiz["questions"], 1):
+            user_ans = st.session_state.quiz["answers"].get(i, "Not answered")
+            correct = user_ans[0].lower() == q["correct"]
+            if correct:
+                score += 1
+            
+            feedback.append({
+                "question": q["text"],
+                "user": user_ans,
+                "correct": q["options"][ord(q["correct"]) - ord('a')],
+                "is_correct": correct
+            })
+        
+        # Score Card
+        with st.container():
+            st.markdown(f"""
+            <div class="pink-card">
+                <h2>Quiz Results</h2>
+                <h3>Score: {score}/{len(feedback)} ({score/len(feedback)*100:.1f}%)</h3>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Feedback
+        for i, fb in enumerate(feedback, 1):
+            st.markdown(f"""
+            **Q{i}:** {fb['question']}  
+            ✅ **Correct:** {fb['correct']}  
+            {"🟢" if fb['is_correct'] else "🔴"} **Your Answer:** {fb['user']}
+            """)
+        
+        if st.button("Retake Quiz"):
+            st.session_state.quiz = {
+                "start_time": None,
+                "time_left": 300,
+                "answers": {},
+                "submitted": False,
+                "questions": []
+            }
+            st.rerun()
