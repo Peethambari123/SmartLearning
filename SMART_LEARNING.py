@@ -1,12 +1,81 @@
-# [Previous imports and functions remain exactly the same until the CSS section]
+import os
+import time
+import streamlit as st
+import google.generativeai as genai
+from PyPDF2 import PdfReader
+from googleapiclient.discovery import build
 
-# Custom CSS for light purple (#E6E6FA) color scheme
+# Configure Google Gemini API key (should use environment variables in production)
+API_KEY = "YOUR_GEMINI_API_KEY"  # Replace with your actual key
+genai.configure(api_key=API_KEY)
+
+# Configure YouTube Data API key
+YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"  # Replace with your actual key
+youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+# Function to read the PDF file
+def read_pdf(file_path):
+    """Reads the text from a PDF file."""
+    with open(file_path, 'rb') as file:
+        reader = PdfReader(file)
+        text = ""
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
+            text += page.extract_text()
+    return text
+
+# Function to query the Gemini LLM with preloaded context
+def query_with_cag(context: str, query: str) -> str:
+    """Query the Gemini LLM with preloaded context."""
+    prompt = f"Context:\n{context}\n\nQuery: {query}\nAnswer:"
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
+    return response.text.strip()
+
+# Function to search YouTube and generate links
+def search_youtube(query: str, max_results: int = 5):
+    """Search YouTube for videos related to the query."""
+    request = youtube.search().list(
+        q=query,
+        part="snippet",
+        type="video",
+        maxResults=max_results
+    )
+    response = request.execute()
+    videos = []
+    for item in response["items"]:
+        video_id = item["id"]["videoId"]
+        video_title = item["snippet"]["title"]
+        video_link = f"https://www.youtube.com/watch?v={video_id}"
+        videos.append({"title": video_title, "link": video_link})
+    return videos
+
+# Function to generate quiz questions from PDF text
+def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
+    """Generate quiz questions from the PDF text."""
+    prompt = f"Generate {num_questions} multiple-choice questions based on:\n\n{pdf_text}\n\nEach question should have 4 options (a), b), c), d)) and a correct answer labeled as 'Correct Answer:'."
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
+    return response.text
+
+# Initialize session state
+if "chat" not in st.session_state:
+    st.session_state.chat = genai.GenerativeModel('gemini-1.5-flash').start_chat(history=[])
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "uploaded_file" not in st.session_state:
+    st.session_state.uploaded_file = None
+    st.session_state.pdf_text = None
+
+# Custom CSS for light purple theme
 st.markdown(
     """
     <style>
     .stApp {
-        background: #E6E6FA;  /* Light lavender background */
-        color: #4B0082;       /* Indigo text for contrast */
+        background: #F3E5FF;  /* Very light purple background */
+        color: #4B0082;       /* Indigo text */
         font-family: 'Arial', sans-serif;
     }
     .stButton>button {
@@ -15,69 +84,64 @@ st.markdown(
         border: none;
         border-radius: 8px;
         padding: 10px 20px;
-        transition: all 0.3s ease;
+        transition: all 0.3s;
     }
     .stButton>button:hover {
         background-color: #8A2BE2 !important;  /* Blue violet */
-        transform: scale(1.05);
+        transform: scale(1.02);
     }
     .stTextInput>div>div>input {
         background-color: rgba(255, 255, 255, 0.9);
+        border: 1px solid #BA55D3;
         border-radius: 8px;
         padding: 10px;
-        border: 1px solid #9370DB;
     }
     .stRadio>div {
         background-color: rgba(255, 255, 255, 0.85);
-        padding: 15px;
         border-radius: 10px;
-        border: 1px solid #9370DB;
+        padding: 15px;
+        border: 1px solid #BA55D3;
     }
     .stHeader {
-        color: #4B0082 !important;  /* Indigo headers */
-    }
-    .stMarkdown {
-        color: #4B0082;
+        color: #6A0DAD !important;  /* Dark purple headers */
     }
     .timer {
-        color: #8A2BE2 !important;  /* Blue violet */
+        color: #8A2BE2;
         font-weight: bold;
-        font-size: 1.3rem;
-        background-color: rgba(230, 230, 250, 0.7);
-        padding: 5px 10px;
-        border-radius: 5px;
-        display: inline-block;
+        font-size: 1.2rem;
     }
     .quiz-card {
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        color: #4B0082 !important;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        border: 1px solid #9370DB;
-    }
-    .sidebar .sidebar-content {
-        background-color: #9370DB !important;  /* Medium purple sidebar */
-        color: white !important;
-    }
-    .stChatMessage {
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        color: #4B0082 !important;
+        background-color: rgba(255, 255, 255, 0.9);
         border-radius: 10px;
         padding: 15px;
-        margin: 10px 0;
-        border: 1px solid #9370DB;
+        margin-bottom: 15px;
+        border: 1px solid #BA55D3;
+    }
+    .sidebar .sidebar-content {
+        background-color: #9370DB !important;
+        color: white !important;
     }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# [Rest of your existing code remains exactly the same until the quiz results section]
+# App Interface
+st.title("🤖 Smart Learning Assistant")
+st.write("Chat with AI, query PDFs, search YouTube, or take quizzes!")
 
-# Only update the results display section in Quiz Challenge mode:
-if st.session_state.quiz_submitted:
+# Sidebar navigation
+app_mode = st.sidebar.radio(
+    "Choose Mode", 
+    ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"],
+    key="nav"
+)
+
+# [Rest of your mode implementations remain the same...]
+# Make sure to properly indent all the mode implementations (Chat, PDF Query, YouTube, Quiz)
+
+# For the quiz results section, update to:
+if st.session_state.get("quiz_submitted", False):
     score = 0
     feedback = []
     for i, q in enumerate(questions, 1):
@@ -93,12 +157,11 @@ if st.session_state.quiz_submitted:
             "is_correct": is_correct
         })
 
-    # Results card with purple accent
     st.markdown(
         f"""
         <div style="background-color: #9370DB; padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;">
-            <h2 style="color: white;">Quiz Results</h2>
-            <h3>Your Score: {score}/{len(questions)} ({(score/len(questions))*100:.1f}%)</h3>
+            <h2>Quiz Results</h2>
+            <h3>Score: {score}/{len(questions)} ({(score/len(questions))*100:.1f}%)</h3>
         </div>
         """,
         unsafe_allow_html=True
