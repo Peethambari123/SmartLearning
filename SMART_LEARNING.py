@@ -86,7 +86,7 @@ st.markdown(
         100% { background-position: 0% 50%; }
     }
     .stButton>button {
-        background-color: #E05A7F;
+        background-color: purple;
         color: purple;
         border-radius: 5px;
         padding: 10px 20px;
