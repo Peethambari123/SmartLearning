@@ -420,10 +420,17 @@ elif app_mode == "Quiz Challenge":
             if correct:
                 score += 1
             
+            # Find the full correct answer text
+            correct_answer_text = "Not found"
+            for opt in q["options"]:
+                if opt[0].lower() == q["correct"].lower():
+                    correct_answer_text = opt
+                    break
+            
             feedback.append({
                 "question": q["text"],
                 "user": user_ans,
-                "correct": next((opt for opt in q["options"] if opt[0].lower() == q["correct"].lower()), 
+                "correct": correct_answer_text,
                 "is_correct": correct
             })
         
