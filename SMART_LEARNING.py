@@ -5,15 +5,12 @@ from google import genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
 
-# ================= GEMINI CONFIG =================
 os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 client = genai.Client()
 
-# ================= YOUTUBE CONFIG =================
 YOUTUBE_API_KEY = st.secrets["YOUTUBE_API_KEY"]
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
-# ================= PDF READER =================
 def read_pdf(file_path):
     with open(file_path, 'rb') as file:
         reader = PdfReader(file)
@@ -23,7 +20,6 @@ def read_pdf(file_path):
             text += page.extract_text()
     return text
 
-# ================= GEMINI QUERY =================
 def query_with_cag(context: str, query: str) -> str:
     prompt = f"Context:\n{context}\n\nQuery: {query}\nAnswer:"
     response = client.models.generate_content(
@@ -32,7 +28,6 @@ def query_with_cag(context: str, query: str) -> str:
     )
     return response.text.strip()
 
-# ================= YOUTUBE =================
 def search_youtube(query: str, max_results: int = 5):
     request = youtube.search().list(
         q=query,
@@ -49,16 +44,14 @@ def search_youtube(query: str, max_results: int = 5):
         videos.append({"title": video_title, "link": video_link})
     return videos
 
-# ================= QUIZ GENERATOR =================
 def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
-    prompt = f"Generate {num_questions} MCQs from this text:\n{pdf_text}"
+    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}"
     response = client.models.generate_content(
         model="gemini-1.5-flash",
         contents=prompt
     )
     return response.text
 
-# ================= CHAT INIT =================
 if "chat" not in st.session_state:
     st.session_state.chat = client.chats.create(
         model="gemini-1.5-flash"
@@ -71,19 +64,14 @@ if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
     st.session_state.pdf_text = None
 
-# ================= UI =================
 st.title("🤖 Chatbot & PDF Query App")
-st.write("Chat with AI | Query PDF | Search YouTube | Quiz")
+st.write("Welcome! You can chat with the AI, upload a PDF to query its content, search for YouTube videos, or take a quiz.")
 
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio(
-    "Choose Mode",
-    ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"]
-)
-
-# ================= CHAT =================
+app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"])
 if app_mode == "Chat with AI":
     st.header("Chat with AI")
+    st.write("Ask me anything!")
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -104,38 +92,96 @@ if app_mode == "Chat with AI":
         with st.chat_message("assistant"):
             st.markdown(response.text)
 
-# ================= PDF =================
 elif app_mode == "Query a PDF":
-    uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+    st.header("Query a PDF")
+    st.write("Upload a PDF and ask questions about its content.")
 
-    if uploaded_file:
-        with open("temp.pdf", "wb") as f:
+    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+    if uploaded_file is not None:
+        temp_file_path = "temp.pdf"
+        with open(temp_file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        pdf_text = read_pdf("temp.pdf")
+        pdf_text = read_pdf(temp_file_path)
         st.session_state.pdf_text = pdf_text
+        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)
 
     if st.session_state.pdf_text:
-        query = st.text_input("Ask a question:")
+        query = st.text_input("Ask a question about the PDF:")
         if query:
-            answer = query_with_cag(st.session_state.pdf_text, query)
-            st.markdown(answer)
-
-# ================= YOUTUBE =================
+            with st.spinner("Processing your query..."):
+                answer = query_with_cag(st.session_state.pdf_text, query)
+                st.markdown(f"**Answer:** {answer}")
 elif app_mode == "Search YouTube":
-    youtube_query = st.text_input("Enter topic:")
-    if youtube_query:
-        videos = search_youtube(youtube_query)
-        for video in videos:
-            st.markdown(f"[{video['title']}]({video['link']})")
+    st.header("Search YouTube")
+    st.write("Search for YouTube videos related to your query.")
 
-# ================= QUIZ =================
+    youtube_query = st.text_input("Enter a search term:")
+    if youtube_query:
+        with st.spinner("Searching YouTube..."):
+            videos = search_youtube(youtube_query)
+            st.write("### Results:")
+            for video in videos:
+                st.markdown(f"[{video['title']}]({video['link']})")
+
 elif app_mode == "Quiz Challenge":
-    uploaded_file = st.file_uploader("Upload PDF", type="pdf")
-    if uploaded_file:
-        with open("quiz.pdf", "wb") as f:
+    st.header("Quiz Challenge")
+    st.write("Upload a PDF and take a timed quiz based on its content.")
+
+    if "quiz_start_time" not in st.session_state:
+        st.session_state.quiz_start_time = None
+    if "time_remaining" not in st.session_state:
+        st.session_state.time_remaining = 300
+    if "user_answers" not in st.session_state:
+        st.session_state.user_answers = {}
+    if "quiz_submitted" not in st.session_state:
+        st.session_state.quiz_submitted = False
+
+    uploaded_file = st.file_uploader("Please upload a PDF file", type="pdf", key="quiz_pdf_uploader")
+    if uploaded_file is not None:
+        temp_file_path = "quiz.pdf"
+        with open(temp_file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        pdf_text = read_pdf("quiz.pdf")
-        quiz = generate_quiz_from_pdf(pdf_text)
-        st.text_area("Quiz", quiz, height=300)
+        pdf_text = read_pdf(temp_file_path)
+        st.session_state.pdf_text = pdf_text
+        st.text_area("PDF Content Preview", value=pdf_text[:500], height=100)
+
+        st.write("### Generating Quiz Questions...")
+        quiz_questions = generate_quiz_from_pdf(pdf_text)
+                lines = quiz_questions.split("\n")
+        questions = []
+        current_question = {}
+        options = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line[0].isdigit() and "." in line[:3]:
+                if current_question and options:
+                    current_question["options"] = options
+                    questions.append(current_question)
+                question_text = line.split(".", 1)[1].strip()
+                current_question = {"text": question_text}
+                options = []
+            elif any(line.startswith(opt) for opt in ["a)", "b)", "c)", "d)"]):
+                options.append(line)
+            elif line.lower().startswith("correct answer:"):
+                correct_answer = line.split(":", 1)[1].strip()
+                current_question["correct"] = correct_answer
+
+        if current_question and options:
+            current_question["options"] = options
+            questions.append(current_question)
+
+        st.write("### Quiz Questions")
+        for i, q in enumerate(questions, 1):
+            st.markdown(f"**Question {i}: {q['text']}**")
+            user_answer = st.radio(
+                f"Select your answer for Question {i}",
+                q["options"],
+                key=f"quiz_q{i}"
+            )
+            st.session_state.user_answers[i] = user_answer
+            
