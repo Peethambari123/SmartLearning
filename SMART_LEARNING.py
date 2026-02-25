@@ -1,13 +1,12 @@
 import os
 import time
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
 
 # Configure Google Gemini API key
-API_KEY = st.secrets["GOOGLE_API_KEY"]
-genai.configure(api_key=API_KEY)
+client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # Configure YouTube Data API key
 YOUTUBE_API_KEY = "AIzaSyDjjpWFszcgYsc4qc_4cFh5n62kRBzUVqo"  # Replace with your YouTube API key
@@ -60,8 +59,9 @@ def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
 
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
-    st.session_state.chat = genai.GenerativeModel('gemini-1.0-pro').start_chat(history=[])
-
+    st.session_state.chat = client.chats.create(
+    model="gemini-1.5-flash"
+)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
