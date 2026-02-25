@@ -112,7 +112,7 @@ elif app_mode == "Query a PDF":
             with st.spinner("Processing your query..."):
                 answer = query_with_cag(st.session_state.pdf_text, query)
                 st.markdown(f"**Answer:** {answer}")
-elif app_mode == "Search YouTube":
+                elif app_mode == "Search YouTube":
     st.header("Search YouTube")
     st.write("Search for YouTube videos related to your query.")
 
@@ -184,4 +184,3 @@ elif app_mode == "Quiz Challenge":
                 key=f"quiz_q{i}"
             )
             st.session_state.user_answers[i] = user_answer
-            
