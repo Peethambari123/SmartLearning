@@ -18,7 +18,8 @@ def read_pdf(file_path):
     with open(file_path, 'rb') as file:
         reader = PdfReader(file)
         text = ""
-        for page in reader.pages:
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
             text += page.extract_text()
     return text
 
@@ -29,18 +30,9 @@ def query_with_cag(context: str, query: str) -> str:
         model="gemini-1.5-flash",
         contents=prompt
     )
-    return response.text
+    return response.text.strip()
 
-# ================= QUIZ GENERATOR =================
-def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
-    prompt = f"Generate {num_questions} multiple-choice questions based on the following text:\n\n{pdf_text}\n\nEach question should have 4 options (a), b), c), d)) and a correct answer labeled as 'Correct Answer:'."
-    response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt
-    )
-    return response.text
-
-# ================= YOUTUBE SEARCH =================
+# ================= YOUTUBE =================
 def search_youtube(query: str, max_results: int = 5):
     request = youtube.search().list(
         q=query,
@@ -57,6 +49,15 @@ def search_youtube(query: str, max_results: int = 5):
         videos.append({"title": video_title, "link": video_link})
     return videos
 
+# ================= QUIZ GENERATOR =================
+def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
+    prompt = f"Generate {num_questions} MCQs from this text:\n{pdf_text}"
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+    return response.text
+
 # ================= CHAT INIT =================
 if "chat" not in st.session_state:
     st.session_state.chat = client.chats.create(
@@ -72,12 +73,15 @@ if "uploaded_file" not in st.session_state:
 
 # ================= UI =================
 st.title("🤖 Chatbot & PDF Query App")
-st.write("Welcome! You can chat with the AI, upload a PDF to query its content, search for YouTube videos, or take a quiz.")
+st.write("Chat with AI | Query PDF | Search YouTube | Quiz")
 
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Mode", ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"])
+app_mode = st.sidebar.radio(
+    "Choose Mode",
+    ["Chat with AI", "Query a PDF", "Search YouTube", "Quiz Challenge"]
+)
 
-# ================= CHAT MODE =================
+# ================= CHAT =================
 if app_mode == "Chat with AI":
     st.header("Chat with AI")
 
@@ -87,7 +91,6 @@ if app_mode == "Chat with AI":
 
     if prompt := st.chat_input("Say something..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-
         with st.chat_message("user"):
             st.markdown(prompt)
 
@@ -101,9 +104,9 @@ if app_mode == "Chat with AI":
         with st.chat_message("assistant"):
             st.markdown(response.text)
 
-# ================= PDF QUERY =================
+# ================= PDF =================
 elif app_mode == "Query a PDF":
-    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+    uploaded_file = st.file_uploader("Upload PDF", type="pdf")
 
     if uploaded_file:
         with open("temp.pdf", "wb") as f:
@@ -113,14 +116,14 @@ elif app_mode == "Query a PDF":
         st.session_state.pdf_text = pdf_text
 
     if st.session_state.pdf_text:
-        query = st.text_input("Ask a question about the PDF:")
+        query = st.text_input("Ask a question:")
         if query:
             answer = query_with_cag(st.session_state.pdf_text, query)
             st.markdown(answer)
 
 # ================= YOUTUBE =================
 elif app_mode == "Search YouTube":
-    youtube_query = st.text_input("Enter a search term:")
+    youtube_query = st.text_input("Enter topic:")
     if youtube_query:
         videos = search_youtube(youtube_query)
         for video in videos:
@@ -128,7 +131,7 @@ elif app_mode == "Search YouTube":
 
 # ================= QUIZ =================
 elif app_mode == "Quiz Challenge":
-    uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
+    uploaded_file = st.file_uploader("Upload PDF", type="pdf")
     if uploaded_file:
         with open("quiz.pdf", "wb") as f:
             f.write(uploaded_file.getbuffer())
