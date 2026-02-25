@@ -28,7 +28,7 @@ def read_pdf(file_path):
 def query_with_cag(context: str, query: str) -> str:
     """Query the Gemini LLM with preloaded context using Cache-Augmented Generation."""
     prompt = f"Context:\n{context}\n\nQuery: {query}\nAnswer:"
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel('gemini-1.0-pro')
     response = model.generate_content(prompt)
     return response.text.strip()
 
@@ -60,7 +60,7 @@ def generate_quiz_from_pdf(pdf_text: str, num_questions: int = 5):
 
 # Initialize session state for chat and PDF
 if "chat" not in st.session_state:
-    st.session_state.chat = genai.GenerativeModel('gemini-1.5-flash').start_chat(history=[])
+    st.session_state.chat = genai.GenerativeModel('gemini-1.0-pro').start_chat(history=[])
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
