@@ -6,7 +6,7 @@ from PyPDF2 import PdfReader
 from googleapiclient.discovery import build
 
 # Configure Google Gemini API key
-API_KEY = "AIzaSyAPS9hfiQ-IlF3HzybSt-SGR_ZP4S3ONgU"
+api_key = st.secrets["GOOGLE_API_KEY"]
 genai.configure(api_key=API_KEY)
 
 # Configure YouTube Data API key
